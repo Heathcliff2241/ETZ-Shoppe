@@ -17,15 +17,15 @@ const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
-app.use('/api/admin', adminRouter);
-app.use('/api/products', productsRouter);
-app.use('/api/orders', ordersRouter);
-app.use('/api/users', usersRouter);
-app.use('/api/cart', cartRouter);
-app.use('/api/wishlist', wishlistRouter);
-app.use('/api/contact', contactRouter);
+app.use('/admin', adminRouter);
+app.use('/products', productsRouter);
+app.use('/orders', ordersRouter);
+app.use('/users', usersRouter);
+app.use('/cart', cartRouter);
+app.use('/wishlist', wishlistRouter);
+app.use('/contact', contactRouter);
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use(notFoundHandler);
 app.use(errorHandler);
 
