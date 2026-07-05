@@ -21,6 +21,7 @@ export default function AdminPage() {
   const [authState, setAuthState] = useState<AuthState>('idle');
   const [email] = useState(ADMIN_EMAIL);
   const [code, setCode] = useState('');
+  const [otpToken, setOtpToken] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +56,11 @@ export default function AdminPage() {
       });
       const data = await parseJsonSafely(res);
       if (!res.ok) throw new Error(data?.error || 'Failed to send OTP.');
+      if (data?.otpToken) {
+        setOtpToken(String(data.otpToken));
+      } else {
+        setOtpToken(null);
+      }
       if (data?.code) {
         setCode(String(data.code));
       }
@@ -72,7 +78,7 @@ export default function AdminPage() {
       const res = await fetch('/api/admin/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({ email, code, otpToken }),
       });
       const data = await parseJsonSafely(res);
       if (!res.ok) throw new Error(data?.error || 'Invalid code.');
@@ -90,6 +96,7 @@ export default function AdminPage() {
     setToken(null);
     setAuthState('idle');
     setCode('');
+    setOtpToken(null);
     setError(null);
   };
 

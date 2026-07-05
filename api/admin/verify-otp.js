@@ -4,7 +4,6 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const SESSION_SECRET = process.env.SESSION_SECRET || 'changeme';
-const otpSessions = new Map();
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -12,28 +11,33 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { email, code } = req.body || {};
+    const { email, code, otpToken } = req.body || {};
     if (!email || !code) {
       return res.status(400).json({ error: 'Email and code are required.' });
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
-    const session = otpSessions.get(normalizedEmail);
 
-    if (!session) {
-      return res.status(401).json({ error: 'No OTP requested for this email.' });
+    let expectedCode = null;
+    if (otpToken) {
+      try {
+        const payload = jwt.verify(otpToken, SESSION_SECRET);
+        if (payload?.purpose !== 'admin-otp' || String(payload?.email || '').toLowerCase() !== normalizedEmail) {
+          return res.status(401).json({ error: 'Invalid or expired OTP session.' });
+        }
+        expectedCode = String(payload.code);
+      } catch {
+        return res.status(401).json({ error: 'Invalid or expired OTP session.' });
+      }
     }
 
-    if (new Date() > new Date(session.expiresAt)) {
-      otpSessions.delete(normalizedEmail);
-      return res.status(401).json({ error: 'OTP has expired. Please request a new one.' });
+    if (!expectedCode && String(code).trim()) {
+      return res.status(401).json({ error: 'OTP session is missing. Please request a new code.' });
     }
 
-    if (String(session.code).trim() !== String(code).trim()) {
+    if (expectedCode && String(expectedCode).trim() !== String(code).trim()) {
       return res.status(401).json({ error: 'Invalid OTP code.' });
     }
-
-    otpSessions.delete(normalizedEmail);
 
     const token = jwt.sign({ email: normalizedEmail, role: 'admin' }, SESSION_SECRET, {
       expiresIn: '30m',

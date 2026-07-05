@@ -1,22 +1,21 @@
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
-const { default: nodemailer } = require('nodemailer');
-const dotenv = require('dotenv');
+import nodemailer from 'nodemailer';
+import dotenv from 'dotenv';
+import jwt from 'jsonwebtoken';
 
 dotenv.config();
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: Number(process.env.SMTP_PORT) === 465,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
-const otpSessions = new Map();
+const SESSION_SECRET = process.env.SESSION_SECRET || 'changeme';
+const transporter = process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS
+  ? nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT) || 587,
+      secure: Number(process.env.SMTP_PORT) === 465,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    })
+  : null;
 
 function generateCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -35,13 +34,16 @@ export default async function handler(req, res) {
 
     const normalizedEmail = String(email).trim().toLowerCase();
     const code = generateCode();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    otpSessions.set(normalizedEmail, { code, expiresAt });
+    const otpToken = jwt.sign(
+      { email: normalizedEmail, code, purpose: 'admin-otp' },
+      SESSION_SECRET,
+      { expiresIn: '10m' }
+    );
 
     let emailSent = false;
     let note = '';
 
-    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    if (transporter) {
       try {
         await transporter.sendMail({
           from: `"ETZ A Shoppe" <${process.env.SMTP_USER}>`,
@@ -62,6 +64,7 @@ export default async function handler(req, res) {
       ok: true,
       message: emailSent ? 'OTP sent.' : 'OTP generated.',
       code,
+      otpToken,
       fallback: !emailSent,
       note,
     });
