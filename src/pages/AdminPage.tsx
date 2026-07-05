@@ -61,9 +61,7 @@ export default function AdminPage() {
       } else {
         setOtpToken(null);
       }
-      if (data?.code) {
-        setCode(String(data.code));
-      }
+      setCode('');
       setAuthState('awaiting_code');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unknown error');
