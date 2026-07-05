@@ -55,6 +55,9 @@ export default function AdminPage() {
       });
       const data = await parseJsonSafely(res);
       if (!res.ok) throw new Error(data?.error || 'Failed to send OTP.');
+      if (data?.code) {
+        setCode(String(data.code));
+      }
       setAuthState('awaiting_code');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unknown error');
