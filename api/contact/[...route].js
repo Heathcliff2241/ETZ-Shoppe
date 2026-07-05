@@ -2,11 +2,6 @@ import app, { initServer } from '../_lib/server.js';
 
 export default async function handler(req, res) {
   await initServer();
-
-  const normalizedUrl = req.url?.startsWith('/api/contact')
-    ? req.url.replace(/^\/api\/contact/, '') || '/'
-    : req.url;
-
-  req.url = normalizedUrl || '/';
+  req.url = req.url?.replace(/^\/api\/contact/, '') || '/';
   return app(req, res);
 }
