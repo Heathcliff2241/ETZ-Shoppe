@@ -1,0 +1,55 @@
+import { neon } from '@neondatabase/serverless';
+import dotenv from 'dotenv';
+dotenv.config();
+
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL environment variable is not set.');
+}
+
+export const sql = neon(process.env.DATABASE_URL);
+
+export async function initDb() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS products (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      price NUMERIC NOT NULL,
+      category TEXT NOT NULL,
+      size TEXT NOT NULL,
+      condition TEXT NOT NULL,
+      condition_note TEXT DEFAULT '',
+      quantity INTEGER DEFAULT 1,
+      images TEXT[] DEFAULT '{}',
+      description TEXT DEFAULT '',
+      is_sold BOOLEAN DEFAULT FALSE,
+      date_added TEXT
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS orders (
+      id TEXT PRIMARY KEY,
+      customer_name TEXT,
+      customer_phone TEXT,
+      customer_email TEXT,
+      delivery_method TEXT,
+      delivery_address TEXT,
+      contact_method TEXT,
+      note TEXT,
+      items JSONB,
+      subtotal NUMERIC,
+      status TEXT DEFAULT 'pending',
+      date_created TEXT
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS otp_sessions (
+      email TEXT PRIMARY KEY,
+      code TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL
+    )
+  `;
+
+  console.log('[db] Tables initialized.');
+}
