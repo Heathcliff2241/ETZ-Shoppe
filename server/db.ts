@@ -51,5 +51,54 @@ export async function initDb() {
     )
   `;
 
-  console.log('[db] Tables initialized.');
+  await sql`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT,
+      phone TEXT,
+      address TEXT,
+      date_registered TEXT
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS carts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id),
+      product_id TEXT REFERENCES products(id),
+      quantity INTEGER,
+      date_added TEXT
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS wishlists (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id),
+      product_id TEXT REFERENCES products(id),
+      date_added TEXT
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS contact_messages (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      message TEXT NOT NULL,
+      date_created TEXT
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS admin_users (
+      id TEXT PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      role TEXT DEFAULT 'admin',
+      date_created TEXT
+    )
+  `;
 }

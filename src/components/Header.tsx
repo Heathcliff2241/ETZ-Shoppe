@@ -98,20 +98,6 @@ export default function Header({ currentPage, cartCount, wishlistCount, onNaviga
 
           {/* Right actions */}
           <div className="flex items-center gap-1 pr-1">
-            <button
-              onClick={() => handleNavClick('admin')}
-              className={`hidden sm:flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-full transition-all duration-300 cursor-pointer ${currentPage === 'admin'
-                ? 'bg-accent-light text-accent'
-                : showSolid
-                  ? 'text-text-secondary hover:text-text-primary hover:bg-surface-tint'
-                  : 'text-white/80 hover:text-white hover:bg-white/10'
-                }`}
-              title="Owner Panel"
-              id="header-owner-button"
-            >
-              <Lock className="w-3 h-3" />
-              <span>Owner</span>
-            </button>
 
             <button
               onClick={() => handleNavClick('wishlist')}

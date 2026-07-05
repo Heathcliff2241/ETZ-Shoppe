@@ -11,6 +11,20 @@ import { Product, Order, Category, ConditionGrade } from '../types';
 interface AdminPanelProps {
   token: string;
   onLogout: () => void;
+  products?: Product[];
+  orders?: Order[];
+  contactMessages?: unknown[];
+  shopEmail?: string;
+  shopPhone?: string;
+  shopFacebook?: string;
+  shopGcash?: string;
+  onUpdateProduct?: (updatedProduct: Product) => void;
+  onAddProduct?: (newProduct: Omit<Product, 'id' | 'dateAdded'>) => void;
+  onDeleteProduct?: (id: string) => void;
+  onUpdateSettings?: (updates: Record<string, string>) => void;
+  onResetDatabase?: () => void;
+  showToast?: (message: string, type?: 'success' | 'error') => void;
+  showConfirmDialog?: (message: string, onConfirm: () => void) => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

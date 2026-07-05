@@ -671,6 +671,8 @@ export default function App() {
               key="admin"
             >
               <AdminPanel
+                token=""
+                onLogout={() => {}}
                 products={products}
                 orders={orders}
                 contactMessages={contactMessages}
