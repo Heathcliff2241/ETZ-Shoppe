@@ -14,17 +14,37 @@ import { notFoundHandler, errorHandler } from '../../server/middleware/errorHand
 dotenv.config();
 
 const app = express();
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+}));
 app.use(express.json());
 
+app.options('*', (_req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  return res.sendStatus(204);
+});
+
+app.use('/api/admin', adminRouter);
 app.use('/admin', adminRouter);
+app.use('/api/products', productsRouter);
 app.use('/products', productsRouter);
+app.use('/api/orders', ordersRouter);
 app.use('/orders', ordersRouter);
+app.use('/api/users', usersRouter);
 app.use('/users', usersRouter);
+app.use('/api/cart', cartRouter);
 app.use('/cart', cartRouter);
+app.use('/api/wishlist', wishlistRouter);
 app.use('/wishlist', wishlistRouter);
+app.use('/api/contact', contactRouter);
 app.use('/contact', contactRouter);
 
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use(notFoundHandler);
 app.use(errorHandler);
