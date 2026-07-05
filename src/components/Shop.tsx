@@ -56,6 +56,9 @@ export default function Shop({
     if (activeSizeFilter !== 'all') {
       const sizeLower = p.size.toLowerCase().trim();
       const filterLower = activeSizeFilter.toLowerCase();
+
+      const isKidsSize = /\b(years|months|month|year|toddler|baby|kids|kid)\b/.test(sizeLower) || p.category === 'kids';
+
       if (filterLower === 's') {
         matchesSize = sizeLower === 's' || sizeLower.startsWith('s ') || sizeLower.startsWith('s(') || sizeLower.includes('(s') || sizeLower.includes('s-');
       } else if (filterLower === 'm') {
@@ -65,7 +68,7 @@ export default function Shop({
       } else if (filterLower === 'xl') {
         matchesSize = sizeLower.includes('xl');
       } else if (filterLower === 'kids') {
-        matchesSize = p.category === 'kids' || sizeLower.includes('y') || sizeLower.includes('years') || sizeLower.includes('t');
+        matchesSize = isKidsSize;
       }
     }
     
