@@ -5,7 +5,7 @@ import { assertRequiredFields, asyncHandler, validateEmail } from '../utils/vali
 export const usersRouter = Router();
 
 usersRouter.get('/', asyncHandler(async (_req, res) => {
-  const users = await sql`SELECT id, email, name, phone, address, date_registered FROM users`;
+  const users = await sql`SELECT id, email, name, phone, address, date_registered FROM users` as Array<Record<string, unknown>>;
   res.json(users);
 }));
 
@@ -24,7 +24,7 @@ usersRouter.post('/', asyncHandler(async (req, res) => {
 
 usersRouter.get('/:id', asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const user = await sql`SELECT id, email, name, phone, address, date_registered FROM users WHERE id = ${id}`;
+  const user = await sql`SELECT id, email, name, phone, address, date_registered FROM users WHERE id = ${id}` as Array<Record<string, unknown>>;
   if (user.length === 0) {
     return res.status(404).json({ message: 'User not found' });
   }
@@ -44,7 +44,7 @@ usersRouter.put('/:id', asyncHandler(async (req, res) => {
     SET email = ${email !== undefined ? String(email) : undefined}, name = ${name !== undefined ? String(name) : undefined}, phone = ${phone !== undefined ? String(phone) : undefined}, address = ${address !== undefined ? String(address) : undefined}
     WHERE id = ${id}
     RETURNING id, email, name, phone, address, date_registered
-  `;
+  ` as Array<Record<string, unknown>>;
   if (updatedUser.length === 0) {
     return res.status(404).json({ message: 'User not found' });
   }
@@ -57,7 +57,7 @@ usersRouter.delete('/:id', asyncHandler(async (req, res) => {
     DELETE FROM users
     WHERE id = ${id}
     RETURNING id
-  `;
+  ` as Array<Record<string, unknown>>;
   if (deletedUser.length === 0) {
     return res.status(404).json({ message: 'User not found' });
   }

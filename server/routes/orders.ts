@@ -55,7 +55,7 @@ ordersRouter.post('/', asyncHandler(async (req: Request, res: Response) => {
 
 // ── GET /api/orders  (admin only) ────────────────────────────────────────────
 ordersRouter.get('/', requireAdmin, asyncHandler(async (_req: Request, res: Response) => {
-  const rows = await sql`SELECT * FROM orders ORDER BY date_created DESC`;
+  const rows = await sql`SELECT * FROM orders ORDER BY date_created DESC` as Array<Record<string, unknown>>;
   return res.json(rows.map(toOrder));
 }));
 
@@ -71,7 +71,7 @@ ordersRouter.put('/:id/status', requireAdmin, asyncHandler(async (req: Request, 
   await sql`UPDATE orders SET status = ${status} WHERE id = ${req.params.id}`;
 
   if (status === 'cancelled') {
-    const rows = await sql`SELECT items FROM orders WHERE id = ${req.params.id}`;
+    const rows = await sql`SELECT items FROM orders WHERE id = ${req.params.id}` as Array<Record<string, unknown>>;
     if (rows.length > 0) {
       const items = rows[0].items as { productId?: string }[];
       for (const item of items) {
@@ -82,7 +82,7 @@ ordersRouter.put('/:id/status', requireAdmin, asyncHandler(async (req: Request, 
     }
   }
 
-  const rows = await sql`SELECT * FROM orders WHERE id = ${req.params.id}`;
+  const rows = await sql`SELECT * FROM orders WHERE id = ${req.params.id}` as Array<Record<string, unknown>>;
   if (rows.length === 0) return res.status(404).json({ error: 'Not found.' });
   return res.json(toOrder(rows[0]));
 }));

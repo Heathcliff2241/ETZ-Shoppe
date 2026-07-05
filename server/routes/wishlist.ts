@@ -6,7 +6,7 @@ export const wishlistRouter = Router();
 wishlistRouter.get('/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    const wishlistItem = await sql`SELECT id, user_id, product_id, date_added FROM wishlists WHERE user_id = ${userId}`;
+    const wishlistItem = await sql`SELECT id, user_id, product_id, date_added FROM wishlists WHERE user_id = ${userId}` as Array<Record<string, unknown>>;
     res.json(wishlistItem);
   } catch (error) {
     console.error('[wishlistRouter] Error fetching wishlist items:', error);
@@ -41,7 +41,7 @@ wishlistRouter.delete('/:userId/:productId', async (req, res) => {
       DELETE FROM wishlists
       WHERE user_id = ${userId} AND product_id = ${productId}
       RETURNING id
-    `;
+    ` as Array<Record<string, unknown>>;
     if (deletedItem.length === 0) {
       return res.status(404).json({ message: 'Wishlist item not found' });
     }
