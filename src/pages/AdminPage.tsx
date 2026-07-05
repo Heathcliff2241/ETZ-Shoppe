@@ -1,15 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Lock, Mail, KeyRound, Loader2, LogOut, AlertCircle } from 'lucide-react';
+import { Lock, Mail, KeyRound, Loader2, AlertCircle } from 'lucide-react';
 import AdminPanel from '../components/AdminPanel';
 
 type AuthState = 'idle' | 'sending' | 'awaiting_code' | 'verifying' | 'authenticated';
 
 const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'cesaresmero2@gmail.com';
 
+function maskEmail(value: string) {
+  if (!value) return '';
+  const [local, domain] = value.split('@');
+  if (!domain) return value;
+  const maskedLocal = local.length <= 2 ? '*'.repeat(local.length) : `${local.slice(0, 2)}${'*'.repeat(Math.max(1, local.length - 2))}`;
+  const [domainName, ...domainRest] = domain.split('.');
+  const maskedDomain = domainRest.length > 0 ? `***.${domainRest.join('.')}` : `***`;
+  return `${maskedLocal}@${maskedDomain}`;
+}
+
 export default function AdminPage() {
   const [authState, setAuthState] = useState<AuthState>('idle');
-  const [email, setEmail] = useState(ADMIN_EMAIL);
+  const [email] = useState(ADMIN_EMAIL);
   const [code, setCode] = useState('');
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +33,17 @@ export default function AdminPage() {
     }
   }, []);
 
+  const parseJsonSafely = async (res: Response) => {
+    const text = await res.text();
+    if (!text) return null;
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { error: text }; 
+    }
+  };
+
   const handleRequestOtp = async () => {
     setError(null);
     setAuthState('sending');
@@ -32,8 +53,8 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to send OTP.');
+      const data = await parseJsonSafely(res);
+      if (!res.ok) throw new Error(data?.error || 'Failed to send OTP.');
       setAuthState('awaiting_code');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -50,8 +71,8 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Invalid code.');
+      const data = await parseJsonSafely(res);
+      if (!res.ok) throw new Error(data?.error || 'Invalid code.');
       sessionStorage.setItem('etz_admin_token', data.token);
       setToken(data.token);
       setAuthState('authenticated');
@@ -117,14 +138,10 @@ export default function AdminPage() {
             </label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9B9B93]" />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={authState === 'awaiting_code' || isLoading}
-                className="w-full pl-9 pr-4 py-2.5 text-sm bg-[#F7F6F2] border border-[#E5E3DE] rounded-xl text-[#1C1C1A] placeholder-[#9B9B93] focus:outline-none focus:border-[#2D6A4F] focus:ring-1 focus:ring-[#2D6A4F] disabled:opacity-60 transition-colors"
-                placeholder="admin@email.com"
-              />
+              <div className="w-full pl-9 pr-4 py-2.5 text-sm bg-[#F7F6F2] border border-[#E5E3DE] rounded-xl text-[#1C1C1A] flex items-center justify-between gap-2">
+                <span className="truncate font-mono">{maskEmail(email)}</span>
+                <span className="text-[11px] uppercase tracking-wide text-[#6B6B65]">Verified owner</span>
+              </div>
             </div>
           </div>
 
