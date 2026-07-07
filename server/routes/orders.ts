@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { sql } from '../db.js';
 import { requireAdmin } from './admin.js';
 import { assertRequiredFields, asyncHandler, validateEmail } from '../utils/validation.js';
+import { sendOrderNotification } from '../mailer.js';
 
 export const ordersRouter = Router();
 
@@ -50,7 +51,22 @@ ordersRouter.post('/', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const rows = await sql`SELECT * FROM orders WHERE id = ${id}`;
-  return res.status(201).json(toOrder(rows[0]));
+  const order = rows[0] as Record<string, unknown>;
+
+  try {
+    await sendOrderNotification({
+      id,
+      customerName: String(o.customerName),
+      customerEmail: String(o.customerEmail),
+      status: 'pending',
+      subtotal: Number(o.subtotal),
+      items: Array.isArray(items) ? items.map((item) => ({ productName: typeof item.productName === 'string' ? item.productName : undefined, productId: typeof item.productId === 'string' ? item.productId : undefined })) : [],
+    });
+  } catch (error) {
+    console.warn('[orders] Failed to send order notification.', error);
+  }
+
+  return res.status(201).json(toOrder(order));
 }));
 
 // ── GET /api/orders  (admin only) ────────────────────────────────────────────
@@ -84,5 +100,20 @@ ordersRouter.put('/:id/status', requireAdmin, asyncHandler(async (req: Request, 
 
   const rows = await sql`SELECT * FROM orders WHERE id = ${req.params.id}` as Array<Record<string, unknown>>;
   if (rows.length === 0) return res.status(404).json({ error: 'Not found.' });
+
+  try {
+    const order = rows[0] as Record<string, unknown>;
+    await sendOrderNotification({
+      id: String(order.id),
+      customerName: String(order.customer_name || ''),
+      customerEmail: String(order.customer_email || ''),
+      status,
+      subtotal: Number(order.subtotal || 0),
+      items: Array.isArray(order.items) ? order.items as Array<{ productName?: string; productId?: string }> : [],
+    });
+  } catch (error) {
+    console.warn('[orders] Failed to send order status notification.', error);
+  }
+
   return res.json(toOrder(rows[0]));
 }));
