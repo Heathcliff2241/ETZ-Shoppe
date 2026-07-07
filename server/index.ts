@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import { initDb } from './db.js';
 import { adminRouter } from './routes/admin.js';
 import { productsRouter } from './routes/products.js';
@@ -18,7 +19,8 @@ const app = express();
 const PORT = 3001;
 
 app.use(cors({ origin: 'http://localhost:3000', credentials: true, methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'] }));
-app.use(express.json());
+app.use(express.json({ limit: '16mb' }));
+app.use('/images', express.static(path.join(process.cwd(), 'public', 'images')));
 
 app.options('*', (_req, res) => {
   res.header('Access-Control-Allow-Origin', 'http://localhost:3000');

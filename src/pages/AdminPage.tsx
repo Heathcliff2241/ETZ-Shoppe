@@ -27,8 +27,10 @@ export default function AdminPage() {
 
   // Persist token in sessionStorage so refreshes don't require re-login
   useEffect(() => {
-    const stored = sessionStorage.getItem('etz_admin_token');
+    const stored = sessionStorage.getItem('etz_admin_token') || localStorage.getItem('etz_admin_token');
     if (stored) {
+      sessionStorage.setItem('etz_admin_token', stored);
+      localStorage.setItem('etz_admin_token', stored);
       setToken(stored);
       setAuthState('authenticated');
     }
@@ -81,6 +83,7 @@ export default function AdminPage() {
       const data = await parseJsonSafely(res);
       if (!res.ok) throw new Error(data?.error || 'Invalid code.');
       sessionStorage.setItem('etz_admin_token', data.token);
+      localStorage.setItem('etz_admin_token', data.token);
       setToken(data.token);
       setAuthState('authenticated');
     } catch (err: unknown) {
@@ -91,6 +94,7 @@ export default function AdminPage() {
 
   const handleLogout = () => {
     sessionStorage.removeItem('etz_admin_token');
+    localStorage.removeItem('etz_admin_token');
     setToken(null);
     setAuthState('idle');
     setCode('');

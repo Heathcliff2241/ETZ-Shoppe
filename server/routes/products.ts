@@ -1,9 +1,14 @@
 import { Router, Request, Response } from 'express';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { put } from '@vercel/blob';
 import { sql, isDbAvailable } from '../db.js';
 import { requireAdmin } from './admin.js';
 import { assertRequiredFields, asyncHandler, parsePositiveNumber } from '../utils/validation.js';
 
 export const productsRouter = Router();
+
+const uploadDir = path.join(process.cwd(), 'public', 'images', 'uploads');
 
 const fallbackProducts = [
   {
@@ -44,21 +49,44 @@ const fallbackProducts = [
   }
 ];
 
-// Helper: map DB row → frontend Product shape
 function toProduct(row: Record<string, unknown>) {
+  const imageValue = typeof row.image === 'string' && row.image ? row.image : undefined;
+  let parsedImages: string[] = [];
+
+  if (typeof imageValue === 'string' && imageValue) {
+    try {
+      const parsed = JSON.parse(imageValue);
+      if (Array.isArray(parsed)) {
+        parsedImages = parsed.filter((item): item is string => typeof item === 'string' && Boolean(item));
+      } else if (typeof parsed === 'string' && parsed) {
+        parsedImages = [parsed];
+      }
+    } catch {
+      parsedImages = imageValue.split(',').map((item) => item.trim()).filter(Boolean);
+    }
+  }
+
+  const images = Array.isArray(row.images)
+    ? (row.images as string[]).filter(Boolean)
+    : parsedImages.length
+      ? parsedImages
+      : imageValue
+        ? [imageValue]
+        : [];
+  const stock = Number(row.currentStock ?? row.quantity ?? 1);
   return {
-    id: row.id,
-    name: row.name,
-    price: Number(row.price),
-    category: row.category,
-    size: row.size,
-    condition: row.condition,
-    conditionNote: row.condition_note ?? '',
-    quantity: Number(row.quantity ?? 1),
-    images: (row.images as string[]) ?? [],
-    description: row.description ?? '',
-    isSold: row.is_sold,
-    dateAdded: row.date_added,
+    id: String(row.id ?? ''),
+    name: String(row.name ?? ''),
+    price: Number(row.price ?? 0),
+    category: (row.category as string) ?? 'mens',
+    size: (row.size as string) ?? '',
+    condition: (row.condition as string) ?? 'Gently Loved',
+    conditionNote: (row.conditionNote as string) ?? '',
+    quantity: Number.isFinite(stock) && stock > 0 ? stock : 1,
+    images,
+    description: String(row.description ?? ''),
+    isSold: Boolean(row.isSold ?? (Number(row.currentStock ?? 1) <= 0)),
+    dateAdded: String(row.createdAt ?? row.dateAdded ?? ''),
   };
 }
 
@@ -68,13 +96,50 @@ async function getProductsFromDb() {
   }
 
   try {
-    const rows = await sql`SELECT * FROM products ORDER BY date_added DESC` as Array<Record<string, unknown>>;
+    const rows = await sql.query(
+      'SELECT "id", "name", "description", "price", "image", "isActive", "isFeatured", "sortOrder", "createdAt", "updatedAt", "currentStock", "lowStockThreshold", "trackInventory" FROM products ORDER BY "createdAt" DESC'
+    ) as Array<Record<string, unknown>>;
     return rows.map(toProduct);
   } catch (error) {
-    console.warn('[products] Falling back to demo products because the database is unavailable.', error);
+    console.warn('[products] Falling back to demo products because the database schema does not match the expected shape.', error);
     return fallbackProducts.map(toProduct);
   }
 }
+
+productsRouter.post('/upload', requireAdmin, asyncHandler(async (req: Request, res: Response) => {
+  const body = req.body as Record<string, unknown>;
+  const filename = typeof body.filename === 'string' ? body.filename : '';
+  const data = typeof body.data === 'string' ? body.data : '';
+
+  if (!filename || !data) {
+    return res.status(400).json({ error: 'An image file is required.' });
+  }
+
+  const match = data.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) {
+    return res.status(400).json({ error: 'Invalid image payload.' });
+  }
+
+  const [, mimeType, base64Data] = match;
+  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const ext = path.extname(safeName) || (mimeType.includes('png') ? '.png' : mimeType.includes('jpeg') ? '.jpg' : '.jpg');
+  const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+  const fileBuffer = Buffer.from(base64Data, 'base64');
+
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const blob = await put(uniqueName, fileBuffer, {
+      access: 'public',
+      contentType: mimeType,
+    });
+    return res.json({ url: blob.url });
+  }
+
+  const filePath = path.join(uploadDir, uniqueName);
+  await fs.mkdir(uploadDir, { recursive: true });
+  await fs.writeFile(filePath, fileBuffer);
+
+  return res.json({ url: `/images/uploads/${uniqueName}` });
+}));
 
 // ── GET /api/products  (public) ───────────────────────────────────────────────
 productsRouter.get('/', asyncHandler(async (_req: Request, res: Response) => {
@@ -91,7 +156,10 @@ productsRouter.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   }
 
   try {
-    const rows = await sql`SELECT * FROM products WHERE id = ${req.params.id}` as Array<Record<string, unknown>>;
+    const rows = await sql.query(
+      'SELECT "id", "name", "description", "price", "image", "isActive", "isFeatured", "sortOrder", "createdAt", "updatedAt", "currentStock", "lowStockThreshold", "trackInventory" FROM products WHERE "id" = $1',
+      [req.params.id]
+    ) as Array<Record<string, unknown>>;
     if (rows.length === 0) return res.status(404).json({ error: 'Not found.' });
     return res.json(toProduct(rows[0]));
   } catch (error) {
@@ -111,21 +179,31 @@ productsRouter.post('/', requireAdmin, asyncHandler(async (req: Request, res: Re
     return res.status(503).json({ error: 'Product storage is currently unavailable.' });
   }
 
-  const id = `etz-${Date.now()}`;
-  const dateAdded = new Date().toISOString().split('T')[0];
+  const now = new Date().toISOString();
   const price = parsePositiveNumber(p.price, 'price');
   const quantity = typeof p.quantity === 'number' ? p.quantity : 1;
+  const imageUrls = Array.isArray(p.images)
+    ? p.images.filter((item): item is string => typeof item === 'string' && Boolean(item))
+    : [];
+  const imageValue = imageUrls.length > 0 ? JSON.stringify(imageUrls) : '';
+  const description = [
+    String(p.description ?? ''),
+    p.conditionNote ? `Condition note: ${String(p.conditionNote)}` : '',
+    p.size ? `Size: ${String(p.size)}` : '',
+    p.condition ? `Condition: ${String(p.condition)}` : '',
+  ].filter(Boolean).join('\n');
 
   try {
-    await sql`
-      INSERT INTO products
-        (id, name, price, category, size, condition, condition_note, quantity, images, description, is_sold, date_added)
-      VALUES
-        (${id}, ${String(p.name)}, ${price}, ${String(p.category)}, ${String(p.size)}, ${String(p.condition)},
-         ${String(p.conditionNote ?? '')}, ${quantity}, ${Array.isArray(p.images) ? p.images : []},
-         ${String(p.description ?? '')}, false, ${dateAdded})
-    `;
-    const rows = await sql`SELECT * FROM products WHERE id = ${id}`;
+    const rows = await sql.query(
+      `
+        INSERT INTO products
+          ("tenantId", "name", "description", "price", "image", "isActive", "isFeatured", "sortOrder", "createdAt", "updatedAt", "currentStock", "lowStockThreshold", "trackInventory")
+        VALUES
+          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        RETURNING "id", "name", "description", "price", "image", "isActive", "isFeatured", "sortOrder", "createdAt", "updatedAt", "currentStock", "lowStockThreshold", "trackInventory"
+      `,
+      [1, String(p.name), description, price, imageValue || null, true, false, 0, now, now, quantity, 10, true]
+    ) as Array<Record<string, unknown>>;
     return res.status(201).json(toProduct(rows[0]));
   } catch (error) {
     console.warn('[products] Failed to insert product.', error);
@@ -144,21 +222,39 @@ productsRouter.put('/:id', requireAdmin, asyncHandler(async (req: Request, res: 
   }
 
   try {
-    await sql`
-      UPDATE products SET
-        name          = ${p.name !== undefined ? String(p.name) : undefined},
-        price         = ${price},
-        category      = ${p.category !== undefined ? String(p.category) : undefined},
-        size          = ${p.size !== undefined ? String(p.size) : undefined},
-        condition     = ${p.condition !== undefined ? String(p.condition) : undefined},
-        condition_note = ${p.conditionNote !== undefined ? String(p.conditionNote) : undefined},
-        quantity      = ${quantity},
-        images        = ${Array.isArray(p.images) ? p.images : undefined},
-        description   = ${p.description !== undefined ? String(p.description) : undefined},
-        is_sold       = ${p.isSold !== undefined ? Boolean(p.isSold) : undefined}
-      WHERE id = ${req.params.id}
-    `;
-    const rows = await sql`SELECT * FROM products WHERE id = ${req.params.id}` as Array<Record<string, unknown>>;
+    const imageUrls = Array.isArray(p.images)
+      ? p.images.filter((item): item is string => typeof item === 'string' && Boolean(item))
+      : [];
+    const imageValue = imageUrls.length > 0 ? JSON.stringify(imageUrls) : undefined;
+
+    const rows = await sql.query(
+      `
+        UPDATE products SET
+          "name" = $1,
+          "description" = $2,
+          "price" = $3,
+          "image" = $4,
+          "isActive" = $5,
+          "updatedAt" = $6,
+          "currentStock" = $7,
+          "lowStockThreshold" = $8,
+          "trackInventory" = $9
+        WHERE "id" = $10
+        RETURNING "id", "name", "description", "price", "image", "isActive", "isFeatured", "sortOrder", "createdAt", "updatedAt", "currentStock", "lowStockThreshold", "trackInventory"
+      `,
+      [
+        p.name !== undefined ? String(p.name) : undefined,
+        p.description !== undefined ? String(p.description) : undefined,
+        price,
+        imageValue,
+        p.isSold !== undefined ? !Boolean(p.isSold) : undefined,
+        new Date().toISOString(),
+        quantity,
+        10,
+        true,
+        req.params.id,
+      ]
+    ) as Array<Record<string, unknown>>;
     if (rows.length === 0) return res.status(404).json({ error: 'Not found.' });
     return res.json(toProduct(rows[0]));
   } catch (error) {
@@ -174,7 +270,7 @@ productsRouter.delete('/:id', requireAdmin, asyncHandler(async (req: Request, re
   }
 
   try {
-    await sql`DELETE FROM products WHERE id = ${req.params.id}`;
+    await sql.query('DELETE FROM products WHERE "id" = $1', [req.params.id]);
     return res.json({ ok: true });
   } catch (error) {
     console.warn('[products] Failed to delete product.', error);

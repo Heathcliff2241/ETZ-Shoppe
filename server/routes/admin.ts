@@ -75,16 +75,39 @@ adminRouter.post('/verify-otp', async (req: Request, res: Response) => {
   return res.json({ ok: true, token });
 });
 
+function extractToken(req: Request) {
+  const authHeader = req.headers.authorization;
+  if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7).trim();
+  }
+
+  const headerToken = req.headers['x-admin-token'];
+  if (typeof headerToken === 'string' && headerToken.trim()) {
+    return headerToken.trim();
+  }
+
+  const legacyHeaderToken = req.headers['x-etz-admin-token'];
+  if (typeof legacyHeaderToken === 'string' && legacyHeaderToken.trim()) {
+    return legacyHeaderToken.trim();
+  }
+
+  const bodyToken = (req.body as { token?: string } | undefined)?.token;
+  if (typeof bodyToken === 'string' && bodyToken.trim()) {
+    return bodyToken.trim();
+  }
+
+  return null;
+}
+
 // ── Middleware: require admin JWT ─────────────────────────────────────────────
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const token = extractToken(req);
+  if (!token) {
     return res.status(401).json({ error: 'Unauthorized.' });
   }
 
-  const token = authHeader.slice(7);
   try {
-    const payload = jwt.verify(token, SESSION_SECRET) as { role: string };
+    const payload = jwt.verify(token, SESSION_SECRET) as { role?: string };
     if (payload.role !== 'admin') throw new Error('Not admin');
     next();
   } catch {

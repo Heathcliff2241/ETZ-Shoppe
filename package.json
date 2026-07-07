@@ -18,6 +18,7 @@
     "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/vite": "^4.1.14",
     "@types/cors": "^2.8.19",
+    "@vercel/blob": "^0.26.0",
     "@vitejs/plugin-react": "^5.0.4",
     "concurrently": "^10.0.3",
     "cors": "^2.8.6",
